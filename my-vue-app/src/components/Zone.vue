@@ -11,5 +11,16 @@ const props = defineProps(['zoneNumber']);
 </template>
 
 <style scoped>
+  h1{
+    font-size: 3.2ch;
+    padding: 0px;
+    margin: 0px;
+  }
 
+  button{
+    padding: 4px;
+    margin: 0px;
+    border-radius: 4px;
+    background-color: transparent;
+  }
 </style>
