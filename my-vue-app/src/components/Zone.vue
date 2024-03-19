@@ -20,7 +20,13 @@ const props = defineProps(['zoneNumber']);
   button{
     padding: 4px;
     margin: 0px;
-    border-radius: 4px;
+    background-color: transparent;
+    border: none;
+  }
+  button:hover{
+    padding: 4px;
+    margin: 0px;
+    border: none;
     background-color: transparent;
   }
 </style>

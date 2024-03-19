@@ -15,11 +15,22 @@ const zoneText = ref("")
 const increment = ref(1)
 const checked = ref("false")
 const objectID = ref("")
+const importedString = ref("")
 
 const ws = ref(null);
 
+
+
 // Attempt to establish a WebSocket connection
 onMounted(() => {
+  const zoneTextInputElement = document.getElementById('zoneTextInput');
+  const zoneTextButtonElement = document.getElementById('zoneTextButton');
+  zoneTextInputElement.addEventListener('keypress', (event) => {
+    if (event.key == "Enter") {
+      zoneTextButtonElement.click()
+    }
+  })
+
   try {
     ws.value = new WebSocket(wsConfig.tunnelUrl);
     // Event listener for successful connection
@@ -27,9 +38,9 @@ onMounted(() => {
     //message reception from server
     ws.value.onmessage = (event) => {
       event.data.text().then(txt => {
-        
+
         let d = JSON.parse(txt)
-        console.log(d)
+        //console.log(d)
         zones.value = d[0]
         zoneData.value = d[1]
       })
@@ -71,6 +82,7 @@ function add(nb) {
     zones.value.sort((a, b) => Number.parseInt(a) - Number.parseInt(b))
     zoneData.value.push({
       zoneNumber: nb,
+      zoneFolded: false,
       ammoPack: 0,
       medPack: 0,
       toolRefill: 0,
@@ -83,9 +95,18 @@ function add(nb) {
       LPSyringe: 0,
       powerCell: 0,
       generator: 0,
+      keyCard: 0,
+      bulkHeadKey: 0,
+      objective: 0,
+      fogTurbine: 0,
+      keyCardColors: [],
       IDs: {
         powerCell: [],
         generator: [],
+        keyCard: [],
+        bulkHeadKey: [],
+        objective: [],
+        fogTurbine: []
       }
     })
     zoneData.value.sort((a, b) => Number.parseInt(a.zoneNumber) - Number.parseInt(b.zoneNumber))
@@ -97,6 +118,12 @@ function add(nb) {
     sendMessage([zones.value, zoneData.value])
   }
 
+}
+
+function toggleFoldForZones(startId, endId) {
+  for (let i = startId; i < endId + 1; i++) {
+    zoneData.value[i].zoneFolded = !zoneData.value[i].zoneFolded
+  }
 }
 
 function updateCount(x) {
@@ -167,6 +194,61 @@ function updateCount(x) {
 
       break;
 
+    case 12:
+      data.keyCard = Math.max(0, data.keyCard + increment.value)
+      if (objectID.value != "" && increment.value > 0) {
+
+        let regexMatch = objectID.value.match(/([a-zA-Z]*)_?\s?(.*)/)
+        data.IDs.keyCard.push([regexMatch[2], regexMatch[1].toLowerCase()])
+        data.IDs.keyCard.sort((a, b) => Number.parseInt(a[0]) - Number.parseInt(b[0]))
+
+      }
+      if (increment.value < 0) {
+        let regexMatch = objectID.value.match(/([a-zA-Z]*)_?\s?(.*)/)
+
+        data.IDs.keyCard = data.IDs.keyCard.filter(e => e[0] != regexMatch[2])
+
+      }
+
+      break;
+
+    case 13:
+      data.bulkHeadKey = Math.max(0, data.bulkHeadKey + increment.value)
+      if (objectID.value != "" && increment.value > 0) {
+        data.IDs.bulkHeadKey.push(objectID.value)
+
+      }
+      if (increment.value < 0) {
+        data.IDs.bulkHeadKey = data.IDs.bulkHeadKey.filter(e => e != objectID.value)
+      }
+
+      break;
+
+    case 14:
+      data.objective = Math.max(0, data.objective + increment.value)
+      if (objectID.value != "" && increment.value > 0) {
+        data.IDs.objective.push(objectID.value)
+
+      }
+      if (increment.value < 0) {
+        data.IDs.objective = data.IDs.objective.filter(e => e != objectID.value)
+      }
+
+      break;
+
+    case 15:
+      data.fogTurbine = Math.max(0, data.fogTurbine + increment.value)
+      if (objectID.value != "" && increment.value > 0) {
+        data.IDs.fogTurbine.push(objectID.value)
+
+      }
+      if (increment.value < 0) {
+        data.IDs.fogTurbine = data.IDs.fogTurbine.filter(e => e != objectID.value)
+      }
+
+      break;
+
+
   }
 
   objectID.value = ""
@@ -174,12 +256,36 @@ function updateCount(x) {
   sendMessage([zones.value, zoneData.value])
 }
 
-function deleteZone(index){
+function getQuantityOfItemsInZone(nb) {
+  let data = zoneData.value[nb]
+  let total = 0
+  for (const [key, value] of Object.entries(data)) {
+    if (!["IDs", "keyCardColors", "zoneNumber", "zoneFolded"].includes(key)) {
+      total += Number.parseInt(value)
+    }
+
+  }
+
+  return total
+}
+
+function deleteZone(index) {
 
   zones.value.splice(index, 1)
   zoneData.value.splice(index, 1)
 
   sendMessage([zones.value, zoneData.value])
+}
+
+function copyAsText() {
+  navigator.clipboard.writeText(JSON.stringify([zones.value, zoneData.value]))
+}
+
+function importFromClipBoard() {
+  let data = JSON.parse(importedString.value)
+  importedString.value = ""
+  zones.value = data[0]
+  zoneData.value = data[1]
 }
 
 
@@ -189,7 +295,7 @@ function deleteZone(index){
   <div class="grid-container">
 
     <div class="zones">
-      <div class="zone" v-for="(z, i) in zones">
+      <div :class="zoneData[i].zoneFolded ? 'zone-folded' : 'zone'" v-for="(z, i) in zones" @click="selectedId = i">
 
         <div class="zoneHeader">
           <button class="delete-button" @click="deleteZone(i)">
@@ -198,10 +304,20 @@ function deleteZone(index){
                 d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
             </svg>
           </button>
-          <Zone :zoneNumber="z" :key="i" @click="selectedId = i" :class="i == selectedId ? 'selected' : ''" />
+          <Zone :zoneNumber="z" :key="i" :class="i == selectedId ? 'selected' : ''" />
+          <span class="resourceCountHeader" v-show="zoneData[i].zoneFolded">({{ getQuantityOfItemsInZone(i) }})</span>
+          <button v-if="i % 5 == 4" class="fold-button" @click="toggleFoldForZones(i - 4, i)">
+            <svg width="24px" height="20px" viewBox="0 0 16 16" fill="#888888" class="bi bi-three-dots-vertical">
+              <path
+                d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z" />
+            </svg>
+          </button>
+
+
         </div>
 
-        <div class="resourceList">
+
+        <div class="resourceList" v-show="!zoneData[i].zoneFolded">
           <div class="resBloc" v-if="zoneData[i].ammoPack > 0"><img src="../src/assets/AmmoPack.png" class="AmmoPack"
               width="32" height="32">{{ zoneData[i].ammoPack }} </div>
           <div class="resBloc" v-if="zoneData[i].medPack > 0"><img src="../src/assets/MedPack.png" class="MedPack"
@@ -223,9 +339,22 @@ function deleteZone(index){
           <div class="resBloc" v-if="zoneData[i].LPSyringe > 0"><img src="../src/assets/LPSyringe.png" class="LPSyringe"
               width="32" height="32">{{ zoneData[i].LPSyringe }} </div>
           <div class="resBloc" v-if="zoneData[i].powerCell > 0"><img src="../src/assets/PowerCell.png" class="PowerCell"
-              width="32" height="32">{{ zoneData[i].powerCell }} <span>{{ zoneData[i].IDs.powerCell }}</span></div>
+              width="32" height="32"><span>{{ zoneData[i].IDs.powerCell }}</span></div>
           <div class="resBloc" v-if="zoneData[i].generator > 0"><img src="../src/assets/Generator.png" class="PowerCell"
-              width="32" height="32">{{ zoneData[i].generator }} <span>{{ zoneData[i].IDs.generator }}</span></div>
+              width="32" height="32"><span>{{ zoneData[i].IDs.generator }}</span></div>
+          <div class="resBloc" v-if="zoneData[i].keyCard > 0"><img src="../src/assets/KeyCard.png" class="KeyCard"
+              width="32" height="32"><span><span v-for="(keyCardData, index) in zoneData[i].IDs.keyCard"
+                :class="keyCardData[1]">{{
+        keyCardData[0] }}</span></span></div>
+          <div class="resBloc" v-if="zoneData[i].bulkHeadKey > 0"><img src="../src/assets/BulkHeadKey.png"
+              class="BulkHeadKey" width="32" height="32">{{ zoneData[i].bulkHeadKey }} <span>{{
+        zoneData[i].IDs.bulkHeadKey }}</span></div>
+          <div class="resBloc" v-if="zoneData[i].objective > 0"><img src="../src/assets/Objective.png" class="Objective"
+              width="32" height="32">{{ zoneData[i].objective }} <span>{{ zoneData[i].IDs.objective }}</span></div>
+          <div class="resBloc" v-if="zoneData[i].fogTurbine > 0"><img src="../src/assets/FogTurbine.png" width="32"
+              height="32"><span>{{ zoneData[i].IDs.fogTurbine
+              }}</span></div>
+
         </div>
       </div>
     </div>
@@ -269,8 +398,20 @@ function deleteZone(index){
       <button @click="updateCount(11)">
         <img src="../src/assets/Generator.png" class="PowerCell" width="48" height="48">
       </button>
+      <button @click="updateCount(12)">
+        <img src="../src/assets/KeyCard.png" class="Key" width="48" height="48">
+      </button>
+      <button @click="updateCount(13)">
+        <img src="../src/assets/BulkHeadKey.png" class="BulkHeadKey" width="48" height="48">
+      </button>
+      <button @click="updateCount(14)">
+        <img src="../src/assets/Objective.png" class="Objective" width="48" height="48">
+      </button>
+      <button @click="updateCount(15)">
+        <img src="../src/assets/FogTurbine.png" width="48" height="48">
+      </button>
 
-      <div class="slider-panel">
+      <div class="sub-panel">
 
         <div>
           <input type="text" v-model="objectID" placeholder="object ID">
@@ -289,9 +430,18 @@ function deleteZone(index){
 
       </div>
       <div>
-        <input type="text" v-model="zoneText">
-        <button @click="add(zoneText)">add zone</button>
+          <input id="zoneTextInput" type="text" v-model="zoneText">
+          <button id="zoneTextButton" @click="add(zoneText)">add zone</button>
+        </div>
+      <div class="sub-panel">
+        
+        <button @click="copyAsText"> copy as text</button>
+        <div>
+          <input type="text" v-model="importedString" placeholder="paste import string here">
+          <button @click="importFromClipBoard"> import from share text</button>
+        </div>
       </div>
+
 
 
 
@@ -301,7 +451,7 @@ function deleteZone(index){
 </template>
 
 <style scoped>
-.slider-panel {
+.sub-panel {
   border: 1px solid #444444;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -314,13 +464,62 @@ function deleteZone(index){
 .resBloc {
   font-size: 4ch;
   vertical-align: bottom;
-  border: transparent;
-  border-radius: 4px;
-  border-width: 1px;
-  border-color: #333333;
+  border-bottom: 1px solid rgb(247, 247, 247);
+  border-radius: 12px;
   display: inline-block;
-  margin-right: 1px;
+  margin-right: 4px;
 }
+
+.resourceCountHeader {
+  font-size: 1.5rem;
+  color: #c4a600;
+}
+
+span {
+  span {
+    border-radius: 8px;
+    margin-left: 1px;
+    margin-right: 1px;
+  }
+
+  .white {
+    background-color: #ebebeb;
+    color: #1b1b1b;
+  }
+
+  .red {
+    background-color: #b40101;
+  }
+
+  .blue {
+    background-color: #1c01b4;
+  }
+
+  .grey {
+    background-color: #4d4d4d;
+  }
+
+  .purple {
+    background-color: #6c009e;
+  }
+
+  .yellow {
+    background-color: #c4a600;
+  }
+
+  .green {
+    background-color: #009e1a;
+  }
+
+  .orange {
+    background-color: #cf6b0d;
+  }
+
+  .black {
+    background-color: #000000;
+  }
+}
+
 
 .resourceList {
   max-height: 80%;
@@ -333,6 +532,18 @@ div>img {
 
 .zone {
   min-height: 10vmin;
+  border: 2px solid;
+  border-color: #353535;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  margin: 2px;
+  padding-right: 2px;
+  padding-left: 2px;
+}
+
+.zone-folded {
+  min-height: 0vmin;
+  max-height: 5vmin;
   border: 2px solid;
   border-color: #353535;
   background-color: #1a1a1a;
@@ -396,6 +607,15 @@ div>img {
   border-color: #ff0000;
 }
 
+.fold-button {
+
+  width: auto;
+  margin: 0px;
+  padding: 0px;
+  border: 1px solid transparent;
+  background-color: transparent;
+}
+
 .delete-button {
   border-radius: 8px;
   width: auto;
@@ -444,4 +664,16 @@ div>img {
 .PowerCell {
   filter: invert(26%) sepia(57%) saturate(3225%) hue-rotate(360deg) brightness(109%) contrast(106%);
 }
-</style>../../server/wsConfig/wsConfigs
+
+.KeyCard {
+  filter: brightness(100%);
+}
+
+.BulkHeadKey {
+  filter: invert(86%) sepia(79%) saturate(6973%) hue-rotate(344deg) brightness(97%) contrast(109%);
+}
+
+.Objective {
+  filter: invert(48%) sepia(23%) saturate(6659%) hue-rotate(56deg) brightness(97%) contrast(101%);
+}
+</style>
