@@ -28,6 +28,10 @@
   height: 0;
 }
 
+html{
+  background-color: #242424;
+}
+
 /* The slider */
 .slider {
   position: absolute;
@@ -91,6 +95,7 @@ body {
   place-items: center;
   height: 100%;
   width: 100%;
+  background-color: #242424;
 }
 
 h1 {
